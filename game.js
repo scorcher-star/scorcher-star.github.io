@@ -2,25 +2,9 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Canvas サイズの設定（レスポンシブ対応）
-function resizeCanvas() {
-    // ウィンドウサイズに応じてcanvasサイズを調整
-    if (window.innerWidth <= 1250) {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-    } else {
-        canvas.width = 1200;
-        canvas.height = 800;
-    }
-}
-
-// 初期サイズ設定
-resizeCanvas();
-
-// ウィンドウリサイズ時の処理
-window.addEventListener('resize', () => {
-    resizeCanvas();
-});
+// Canvas サイズの設定（固定の描画サイズ、CSSで表示サイズを調整）
+canvas.width = 1200;
+canvas.height = 800;
 
 // 画像の設定（ここで画像パスを変更できます）
 const playerImagePath = 'player.png'; // プレイヤー画像のパス（nullにすると四角形で描画）
