@@ -484,9 +484,12 @@ window.addEventListener('keyup', (e) => {
 function getTouchPos(e) {
     const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0] || e.changedTouches[0];
+    // canvasの表示サイズと実際の描画サイズのスケール係数を計算
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
     return {
-        x: touch.clientX - rect.left,
-        y: touch.clientY - rect.top
+        x: (touch.clientX - rect.left) * scaleX,
+        y: (touch.clientY - rect.top) * scaleY
     };
 }
 

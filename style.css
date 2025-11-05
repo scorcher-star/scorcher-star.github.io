@@ -32,9 +32,6 @@ body {
     background: #1a1a2e;
     /* タッチ操作を滑らかに */
     touch-action: none;
-    /* スマホでのサイズ調整 */
-    max-width: 100vw;
-    max-height: 100vh;
 }
 
 #ui {
