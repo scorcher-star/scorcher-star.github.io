@@ -267,7 +267,9 @@ class Weapon {
 
         for (let i = 0; i < Math.min(this.count, sortedEnemies.length); i++) {
             const target = sortedEnemies[i];
-            projectiles.push(new Projectile(player.x, player.y, target.x, target.y, this.damage));
+            const proj = new Projectile(player.x, player.y, target.x, target.y, this.damage);
+            projectiles.push(proj);
+            console.log('Projectile fired:', { from: {x: player.x, y: player.y}, to: {x: target.x, y: target.y}, total: projectiles.length });
         }
 
         this.lastFire = Date.now();
@@ -301,7 +303,9 @@ function spawnEnemy() {
         case 3: x = -30; y = Math.random() * canvas.height; break;
     }
 
-    enemies.push(new Enemy(x, y));
+    const enemy = new Enemy(x, y);
+    enemies.push(enemy);
+    console.log('Enemy spawned:', { x, y, total: enemies.length });
 }
 
 // レベルアップメニュー表示
@@ -366,6 +370,18 @@ function initGame() {
     gameTime = 0;
     score = 0;
     lastTime = Date.now();
+
+    // 初期敵を3体スポーン（デバッグ用）
+    for (let i = 0; i < 3; i++) {
+        spawnEnemy();
+    }
+
+    console.log('Game initialized:', {
+        canvas: { width: canvas.width, height: canvas.height },
+        player: { x: player.x, y: player.y },
+        enemies: enemies.length
+    });
+
     updateUI();
 }
 
@@ -445,6 +461,11 @@ function gameLoop(currentTime) {
         enemy.update();
         enemy.draw();
     });
+
+    // デバッグ情報を画面に表示
+    ctx.fillStyle = '#FFF';
+    ctx.font = '16px Arial';
+    ctx.fillText(`Enemies: ${enemies.length}, Projectiles: ${projectiles.length}`, 10, canvas.height - 20);
 
     updateUI();
 }
