@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ヴァンパイアサバイバー</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="1200" height="800"></canvas>
+        <div id="ui">
+            <div class="stats">
+                <div class="health-bar-container">
+                    <div class="health-bar" id="healthBar"></div>
+                </div>
+                <div class="exp-bar-container">
+                    <div class="exp-bar" id="expBar"></div>
+                </div>
+                <div class="info">
+                    <span>レベル: <span id="level">1</span></span>
+                    <span>スコア: <span id="score">0</span></span>
+                    <span>時間: <span id="time">0:00</span></span>
+                </div>
+            </div>
+        </div>
+        <div id="levelUpMenu" class="level-up-menu hidden">
+            <h2>レベルアップ！</h2>
+            <div id="upgradeOptions" class="upgrade-options"></div>
+        </div>
+        <div id="gameOverMenu" class="game-over-menu hidden">
+            <h1>ゲームオーバー</h1>
+            <p>スコア: <span id="finalScore">0</span></p>
+            <p>生存時間: <span id="survivalTime">0:00</span></p>
+            <button id="restartBtn">再スタート</button>
+        </div>
+        <div id="startMenu" class="start-menu">
+            <h1>ヴァンパイアサバイバー</h1>
+            <p>WASDキーで移動</p>
+            <p>敵を倒して経験値を獲得し、レベルアップしよう！</p>
+            <button id="startBtn">ゲームスタート</button>
+        </div>
+    </div>
+    <script src="game.js"></script>
+</body>
+</html>
