@@ -2,6 +2,25 @@
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
+// 画像の設定（ここで画像パスを変更できます）
+const playerImagePath = 'player.png'; // プレイヤー画像のパス（nullにすると四角形で描画）
+let playerImage = null;
+let playerImageLoaded = false;
+
+// プレイヤー画像の読み込み
+if (playerImagePath) {
+    playerImage = new Image();
+    playerImage.onload = () => {
+        playerImageLoaded = true;
+        console.log('プレイヤー画像を読み込みました');
+    };
+    playerImage.onerror = () => {
+        console.log('プレイヤー画像の読み込みに失敗しました。デフォルトの四角形で描画します。');
+        playerImageLoaded = false;
+    };
+    playerImage.src = playerImagePath;
+}
+
 // ゲーム状態
 let gameState = 'start'; // start, playing, levelup, gameover
 let gameTime = 0;
@@ -43,13 +62,25 @@ class Player {
     }
 
     draw() {
-        ctx.fillStyle = '#4CAF50';
-        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+        if (playerImageLoaded && playerImage) {
+            // 画像を描画
+            ctx.drawImage(
+                playerImage,
+                this.x - this.width / 2,
+                this.y - this.height / 2,
+                this.width,
+                this.height
+            );
+        } else {
+            // デフォルトの四角形を描画
+            ctx.fillStyle = '#4CAF50';
+            ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
 
-        // プレイヤーの目
-        ctx.fillStyle = '#FFF';
-        ctx.fillRect(this.x - 7, this.y - 7, 5, 5);
-        ctx.fillRect(this.x + 2, this.y - 7, 5, 5);
+            // プレイヤーの目
+            ctx.fillStyle = '#FFF';
+            ctx.fillRect(this.x - 7, this.y - 7, 5, 5);
+            ctx.fillRect(this.x + 2, this.y - 7, 5, 5);
+        }
     }
 
     takeDamage(damage) {
