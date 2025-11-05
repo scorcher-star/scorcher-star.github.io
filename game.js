@@ -35,6 +35,10 @@ const keys = {
     d: false
 };
 
+// タッチ操作
+let touchActive = false;
+let touchTarget = { x: 0, y: 0 };
+
 // プレイヤークラス
 class Player {
     constructor(x, y) {
@@ -51,10 +55,25 @@ class Player {
     }
 
     update() {
+        // キーボード操作
         if (keys.w) this.y -= this.speed;
         if (keys.s) this.y += this.speed;
         if (keys.a) this.x -= this.speed;
         if (keys.d) this.x += this.speed;
+
+        // タッチ操作（タッチ位置に向かって移動）
+        if (touchActive) {
+            const dx = touchTarget.x - this.x;
+            const dy = touchTarget.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            // タッチ位置まで一定距離以上ある場合のみ移動
+            if (distance > 5) {
+                const moveSpeed = Math.min(this.speed, distance);
+                this.x += (dx / distance) * moveSpeed;
+                this.y += (dy / distance) * moveSpeed;
+            }
+        }
 
         // 画面外に出ないようにする
         this.x = Math.max(this.width / 2, Math.min(canvas.width - this.width / 2, this.x));
@@ -439,6 +458,45 @@ window.addEventListener('keyup', (e) => {
     if (keys.hasOwnProperty(key)) {
         keys[key] = false;
     }
+});
+
+// タッチイベント（スマホ対応）
+function getTouchPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches[0] || e.changedTouches[0];
+    return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+    };
+}
+
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (gameState !== 'playing') return;
+
+    const pos = getTouchPos(e);
+    touchActive = true;
+    touchTarget.x = pos.x;
+    touchTarget.y = pos.y;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (gameState !== 'playing' || !touchActive) return;
+
+    const pos = getTouchPos(e);
+    touchTarget.x = pos.x;
+    touchTarget.y = pos.y;
+});
+
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    touchActive = false;
+});
+
+canvas.addEventListener('touchcancel', (e) => {
+    e.preventDefault();
+    touchActive = false;
 });
 
 document.getElementById('startBtn').addEventListener('click', () => {
