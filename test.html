@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>接続テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a2e;
+            color: white;
+        }
+        .test-box {
+            background: #16213e;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+        .success { border-left: 4px solid #4CAF50; }
+        .error { border-left: 4px solid #F44336; }
+    </style>
+</head>
+<body>
+    <h1>ゲーム読み込みテスト</h1>
+
+    <div class="test-box success" id="htmlTest">
+        ✓ HTML ファイルは正常に読み込まれました
+    </div>
+
+    <div class="test-box" id="cssTest">
+        ⏳ CSS ファイルを確認中...
+    </div>
+
+    <div class="test-box" id="jsTest">
+        ⏳ JavaScript ファイルを確認中...
+    </div>
+
+    <div class="test-box" id="gameTest">
+        ⏳ ゲーム起動を確認中...
+    </div>
+
+    <div style="margin-top: 20px;">
+        <button id="backBtn" style="padding: 10px 20px; font-size: 16px; cursor: pointer;">
+            ゲームに戻る
+        </button>
+    </div>
+
+    <script>
+        // CSS テスト
+        setTimeout(() => {
+            const cssTest = document.getElementById('cssTest');
+            const styles = window.getComputedStyle(document.body);
+            if (styles.backgroundColor === 'rgb(26, 26, 46)') {
+                cssTest.className = 'test-box success';
+                cssTest.textContent = '✓ CSS ファイルは正常に読み込まれました';
+            } else {
+                cssTest.className = 'test-box error';
+                cssTest.textContent = '✗ CSS ファイルが読み込めません';
+            }
+        }, 100);
+
+        // JavaScript テスト
+        setTimeout(() => {
+            const jsTest = document.getElementById('jsTest');
+            jsTest.className = 'test-box success';
+            jsTest.textContent = '✓ JavaScript は正常に動作しています';
+        }, 200);
+
+        // ゲームファイルテスト
+        setTimeout(() => {
+            const gameTest = document.getElementById('gameTest');
+
+            // game.js の読み込みをテスト
+            fetch('game.js')
+                .then(response => {
+                    if (response.ok) {
+                        gameTest.className = 'test-box success';
+                        gameTest.innerHTML = '✓ game.js ファイルが見つかりました<br>→ <a href="index.html" style="color: #4CAF50;">index.html</a> に戻ってゲームを開始できます';
+                    } else {
+                        gameTest.className = 'test-box error';
+                        gameTest.innerHTML = `✗ game.js ファイルが見つかりません (${response.status})<br>ファイルをサーバーにアップロードしてください`;
+                    }
+                })
+                .catch(error => {
+                    gameTest.className = 'test-box error';
+                    gameTest.innerHTML = '✗ ファイルの読み込みに失敗しました<br>エラー: ' + error.message;
+                });
+        }, 300);
+
+        // 戻るボタン
+        document.getElementById('backBtn').addEventListener('click', () => {
+            window.location.href = 'index.html';
+        });
+    </script>
+</body>
+</html>

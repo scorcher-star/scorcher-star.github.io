@@ -193,8 +193,7 @@ body {
     }
 
     #gameCanvas {
-        width: 100vw !important;
-        height: 100vh !important;
+        /* JavaScriptで動的にサイズ設定するため、CSSでは制御しない */
         border: none;
     }
 
