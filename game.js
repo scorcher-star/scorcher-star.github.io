@@ -55,9 +55,11 @@ const keys = {
     d: false
 };
 
-// タッチ操作
+// タッチ操作（バーチャルジョイスティック）
 let touchActive = false;
-let touchTarget = { x: 0, y: 0 };
+let touchStartPos = { x: 0, y: 0 }; // タッチ開始位置（ジョイスティック中心）
+let touchCurrentPos = { x: 0, y: 0 }; // 現在のタッチ位置
+const joystickRadius = 60; // ジョイスティックの最大半径
 
 // プレイヤークラス
 class Player {
@@ -81,17 +83,23 @@ class Player {
         if (keys.a) this.x -= this.speed;
         if (keys.d) this.x += this.speed;
 
-        // タッチ操作（タッチ位置に向かって移動）
+        // タッチ操作（バーチャルジョイスティック）
         if (touchActive) {
-            const dx = touchTarget.x - this.x;
-            const dy = touchTarget.y - this.y;
+            // ジョイスティックの中心からのオフセットを計算
+            const dx = touchCurrentPos.x - touchStartPos.x;
+            const dy = touchCurrentPos.y - touchStartPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            // タッチ位置まで一定距離以上ある場合のみ移動
-            if (distance > 5) {
-                const moveSpeed = Math.min(this.speed, distance);
-                this.x += (dx / distance) * moveSpeed;
-                this.y += (dy / distance) * moveSpeed;
+            // デッドゾーン（小さな動きは無視）
+            const deadZone = 10;
+            if (distance > deadZone) {
+                // 移動方向を正規化（距離が大きすぎる場合は制限）
+                const normalizedDist = Math.min(distance, joystickRadius);
+                const ratio = normalizedDist / distance;
+
+                // ジョイスティックの傾きに応じて移動
+                this.x += (dx * ratio / joystickRadius) * this.speed;
+                this.y += (dy * ratio / joystickRadius) * this.speed;
             }
         }
 
@@ -305,6 +313,44 @@ const upgradeTemplates = [
     { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } }
 ];
 
+// バーチャルジョイスティックの描画
+function drawJoystick() {
+    if (!touchActive) return;
+
+    // ジョイスティックの中心からの距離を計算
+    const dx = touchCurrentPos.x - touchStartPos.x;
+    const dy = touchCurrentPos.y - touchStartPos.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    // スティック位置を制限
+    let stickX = touchCurrentPos.x;
+    let stickY = touchCurrentPos.y;
+
+    if (distance > joystickRadius) {
+        const angle = Math.atan2(dy, dx);
+        stickX = touchStartPos.x + Math.cos(angle) * joystickRadius;
+        stickY = touchStartPos.y + Math.sin(angle) * joystickRadius;
+    }
+
+    // 外側の円（ベース）を描画
+    ctx.beginPath();
+    ctx.arc(touchStartPos.x, touchStartPos.y, joystickRadius, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 内側の円（スティック）を描画
+    ctx.beginPath();
+    ctx.arc(stickX, stickY, 25, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+}
+
 // 敵のスポーン
 function spawnEnemy() {
     const side = Math.floor(Math.random() * 4);
@@ -462,6 +508,9 @@ function gameLoop(currentTime) {
         enemy.draw();
     });
 
+    // バーチャルジョイスティック描画
+    drawJoystick();
+
     updateUI();
 }
 
@@ -496,8 +545,11 @@ canvas.addEventListener('touchstart', (e) => {
 
     const pos = getTouchPos(e);
     touchActive = true;
-    touchTarget.x = pos.x;
-    touchTarget.y = pos.y;
+    // タッチ開始位置をジョイスティックの中心とする
+    touchStartPos.x = pos.x;
+    touchStartPos.y = pos.y;
+    touchCurrentPos.x = pos.x;
+    touchCurrentPos.y = pos.y;
 });
 
 canvas.addEventListener('touchmove', (e) => {
@@ -505,8 +557,9 @@ canvas.addEventListener('touchmove', (e) => {
     if (gameState !== 'playing' || !touchActive) return;
 
     const pos = getTouchPos(e);
-    touchTarget.x = pos.x;
-    touchTarget.y = pos.y;
+    // 現在のタッチ位置を更新
+    touchCurrentPos.x = pos.x;
+    touchCurrentPos.y = pos.y;
 });
 
 canvas.addEventListener('touchend', (e) => {
