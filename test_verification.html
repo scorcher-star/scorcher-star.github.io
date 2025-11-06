@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Verification Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test-results {
+            background: #2a2a2a;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .test-item {
+            padding: 10px;
+            margin: 5px 0;
+            border-left: 4px solid #666;
+        }
+        .test-item.pass {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+        .test-item.fail {
+            border-color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+        }
+        .test-item.warn {
+            border-color: #ff9800;
+            background: rgba(255, 152, 0, 0.1);
+        }
+        iframe {
+            width: 100%;
+            height: 600px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        #console-logs {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎮 Game Verification Test</h1>
+
+    <div>
+        <button onclick="runTest()">🧪 Run Test</button>
+        <button onclick="reloadGame()">🔄 Reload Game</button>
+    </div>
+
+    <iframe id="gameFrame" src="index.html"></iframe>
+
+    <div class="test-results" id="testResults">
+        <h2>Test Results</h2>
+        <div id="resultsContainer">
+            <p>Click "Run Test" to start verification...</p>
+        </div>
+    </div>
+
+    <div class="test-results">
+        <h3>Console Logs</h3>
+        <div id="console-logs"></div>
+    </div>
+
+    <script>
+        const consoleLogs = [];
+        const consoleContainer = document.getElementById('console-logs');
+
+        // Intercept console logs from iframe
+        function captureConsoleLogs() {
+            const iframe = document.getElementById('gameFrame');
+            try {
+                const iframeWindow = iframe.contentWindow;
+                const originalLog = iframeWindow.console.log;
+                const originalError = iframeWindow.console.error;
+                const originalWarn = iframeWindow.console.warn;
+
+                iframeWindow.console.log = function(...args) {
+                    consoleLogs.push({ type: 'log', message: args.join(' ') });
+                    updateConsoleDisplay();
+                    originalLog.apply(iframeWindow.console, args);
+                };
+
+                iframeWindow.console.error = function(...args) {
+                    consoleLogs.push({ type: 'error', message: args.join(' ') });
+                    updateConsoleDisplay();
+                    originalError.apply(iframeWindow.console, args);
+                };
+
+                iframeWindow.console.warn = function(...args) {
+                    consoleLogs.push({ type: 'warn', message: args.join(' ') });
+                    updateConsoleDisplay();
+                    originalWarn.apply(iframeWindow.console, args);
+                };
+            } catch (e) {
+                console.error('Cannot capture iframe console:', e);
+            }
+        }
+
+        function updateConsoleDisplay() {
+            consoleContainer.innerHTML = consoleLogs.map(log =>
+                `<div style="color: ${log.type === 'error' ? '#f44' : log.type === 'warn' ? '#fa0' : '#0f0'}">[${log.type}] ${log.message}</div>`
+            ).join('');
+            consoleContainer.scrollTop = consoleContainer.scrollHeight;
+        }
+
+        function reloadGame() {
+            consoleLogs.length = 0;
+            updateConsoleDisplay();
+            document.getElementById('gameFrame').src = 'index.html';
+            setTimeout(captureConsoleLogs, 1000);
+        }
+
+        async function runTest() {
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = '<p>Running tests...</p>';
+
+            const iframe = document.getElementById('gameFrame');
+            const iframeWindow = iframe.contentWindow;
+            const iframeDoc = iframe.contentDocument;
+
+            await new Promise(resolve => setTimeout(resolve, 500));
+
+            const results = [];
+
+            // Test 1: Check if canvas exists
+            const canvas = iframeDoc.querySelector('canvas');
+            results.push({
+                name: 'Canvas Element',
+                pass: !!canvas,
+                message: canvas ? '✅ Canvas found' : '❌ Canvas not found'
+            });
+
+            // Test 2: Check if start button exists and click it
+            const startButton = iframeDoc.querySelector('button');
+            if (startButton && startButton.textContent === 'Start') {
+                results.push({
+                    name: 'Start Button',
+                    pass: true,
+                    message: '✅ Start button found'
+                });
+
+                // Click the start button
+                startButton.click();
+                results.push({
+                    name: 'Start Button Click',
+                    pass: true,
+                    message: '✅ Start button clicked'
+                });
+
+                // Wait 3 seconds
+                await new Promise(resolve => setTimeout(resolve, 3000));
+
+                // Test 3: Check game state
+                try {
+                    const gameState = iframeWindow.gameState;
+
+                    if (gameState) {
+                        results.push({
+                            name: 'Game State',
+                            pass: true,
+                            message: '✅ Game state object found'
+                        });
+
+                        // Check if game is playing
+                        results.push({
+                            name: 'Game Playing',
+                            pass: gameState.isPlaying === true,
+                            message: gameState.isPlaying ? '✅ Game is playing' : '❌ Game is not playing'
+                        });
+
+                        // Check elapsed time
+                        const time = gameState.elapsedTime || 0;
+                        results.push({
+                            name: 'Time Display',
+                            pass: time >= 2.5 && time <= 3.5,
+                            message: time >= 2.5 && time <= 3.5
+                                ? `✅ Time display correct: ${time.toFixed(2)}s`
+                                : `⚠️ Time display: ${time.toFixed(2)}s (expected ~3s)`,
+                            warn: time < 2.5 || time > 3.5
+                        });
+
+                        // Check enemies
+                        const enemyCount = gameState.enemies?.length || 0;
+                        results.push({
+                            name: 'Enemies',
+                            pass: enemyCount > 0,
+                            message: enemyCount > 0
+                                ? `✅ ${enemyCount} enemies found`
+                                : '❌ No enemies found'
+                        });
+
+                        // Check projectiles
+                        const projectileCount = gameState.projectiles?.length || 0;
+                        results.push({
+                            name: 'Projectiles',
+                            pass: projectileCount > 0,
+                            message: projectileCount > 0
+                                ? `✅ ${projectileCount} projectiles found`
+                                : '⚠️ No projectiles yet (may not have fired)',
+                            warn: projectileCount === 0
+                        });
+
+                        // Check if canvas has content
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const hasContent = Array.from(imageData.data).some(v => v !== 0);
+                            results.push({
+                                name: 'Canvas Content',
+                                pass: hasContent,
+                                message: hasContent ? '✅ Canvas has visual content' : '❌ Canvas is blank'
+                            });
+                        }
+                    } else {
+                        results.push({
+                            name: 'Game State',
+                            pass: false,
+                            message: '❌ Game state not found'
+                        });
+                    }
+                } catch (e) {
+                    results.push({
+                        name: 'Game State Access',
+                        pass: false,
+                        message: `❌ Error accessing game state: ${e.message}`
+                    });
+                }
+            } else {
+                results.push({
+                    name: 'Start Button',
+                    pass: false,
+                    message: '❌ Start button not found'
+                });
+            }
+
+            // Display results
+            const passCount = results.filter(r => r.pass).length;
+            const failCount = results.filter(r => !r.pass && !r.warn).length;
+            const warnCount = results.filter(r => r.warn).length;
+
+            resultsContainer.innerHTML = `
+                <h3>Summary: ${passCount} passed, ${failCount} failed, ${warnCount} warnings</h3>
+                ${results.map(r => `
+                    <div class="test-item ${r.pass ? 'pass' : r.warn ? 'warn' : 'fail'}">
+                        <strong>${r.name}:</strong> ${r.message}
+                    </div>
+                `).join('')}
+                <div style="margin-top: 20px; padding: 10px; background: ${failCount === 0 ? 'rgba(76, 175, 80, 0.2)' : 'rgba(244, 67, 54, 0.2)'}; border-radius: 4px;">
+                    ${failCount === 0
+                        ? '🎉 <strong>All critical tests passed! Game is functioning properly.</strong>'
+                        : '⚠️ <strong>Some tests failed. Please review the issues above.</strong>'}
+                </div>
+            `;
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            setTimeout(captureConsoleLogs, 1000);
+        });
+    </script>
+</body>
+</html>

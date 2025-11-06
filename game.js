@@ -378,16 +378,16 @@ function initGame() {
     player = new Player(canvas.width / 2, canvas.height / 2);
     enemies = [];
     projectiles = [];
-    weapons = [new Weapon('基本攻撃', 1, 1000, 1)];
+    weapons = [new Weapon('基本攻撃', 1, 500, 1)]; // クールダウンを500msに短縮
     gameTime = 0;
     score = 0;
-    lastTime = Date.now();
+    lastTime = performance.now(); // Date.now()から変更
     updateUI();
 }
 
 // ゲームループ
 let enemySpawnTimer = 0;
-const enemySpawnInterval = 2000; // 2秒ごと
+const enemySpawnInterval = 1000; // 1秒ごとに変更（より早く敵が出現）
 
 function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop);
@@ -523,7 +523,7 @@ document.getElementById('startBtn').addEventListener('click', () => {
     document.getElementById('startMenu').classList.add('hidden');
     gameState = 'playing';
     initGame();
-    lastTime = Date.now();
+    lastTime = performance.now(); // Date.now()から変更
     gameLoop(lastTime);
 });
 
@@ -531,12 +531,8 @@ document.getElementById('restartBtn').addEventListener('click', () => {
     document.getElementById('gameOverMenu').classList.add('hidden');
     gameState = 'playing';
     initGame();
-    lastTime = Date.now();
+    lastTime = performance.now(); // Date.now()から変更
 });
 
-// DOMが完全に読み込まれてから初期化
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initGame);
-} else {
-    initGame();
-}
+// DOMが完全に読み込まれたことを確認（自動初期化は削除）
+// スタートボタンを押すまでゲームは開始しない
