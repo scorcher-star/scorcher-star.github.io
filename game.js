@@ -55,9 +55,103 @@ const keys = {
     d: false
 };
 
-// タッチ操作
+// タッチ操作とバーチャルジョイスティック
 let touchActive = false;
 let touchTarget = { x: 0, y: 0 };
+
+// バーチャルジョイスティッククラス
+class VirtualJoystick {
+    constructor() {
+        this.baseX = 0;
+        this.baseY = 0;
+        this.stickX = 0;
+        this.stickY = 0;
+        this.radius = 60; // ジョイスティックの外側の半径
+        this.stickRadius = 25; // スティックの半径
+        this.maxDistance = 40; // スティックが移動できる最大距離
+        this.active = false;
+        this.direction = { x: 0, y: 0 }; // 正規化された方向ベクトル
+    }
+
+    start(x, y) {
+        this.active = true;
+        this.baseX = x;
+        this.baseY = y;
+        this.stickX = x;
+        this.stickY = y;
+        this.updateDirection();
+    }
+
+    move(x, y) {
+        if (!this.active) return;
+
+        const dx = x - this.baseX;
+        const dy = y - this.baseY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // 最大距離を超えないように制限
+        if (distance > this.maxDistance) {
+            this.stickX = this.baseX + (dx / distance) * this.maxDistance;
+            this.stickY = this.baseY + (dy / distance) * this.maxDistance;
+        } else {
+            this.stickX = x;
+            this.stickY = y;
+        }
+
+        this.updateDirection();
+    }
+
+    end() {
+        this.active = false;
+        this.direction = { x: 0, y: 0 };
+    }
+
+    updateDirection() {
+        const dx = this.stickX - this.baseX;
+        const dy = this.stickY - this.baseY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance > 5) { // デッドゾーン
+            this.direction.x = dx / distance;
+            this.direction.y = dy / distance;
+        } else {
+            this.direction.x = 0;
+            this.direction.y = 0;
+        }
+    }
+
+    draw(ctx) {
+        if (!this.active) return;
+
+        // 外側の円（ベース）
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.beginPath();
+        ctx.arc(this.baseX, this.baseY, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 外側の円の縁
+        ctx.strokeStyle = 'rgba(150, 150, 150, 0.5)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.baseX, this.baseY, this.radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // スティック
+        ctx.fillStyle = 'rgba(200, 200, 200, 0.6)';
+        ctx.beginPath();
+        ctx.arc(this.stickX, this.stickY, this.stickRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // スティックの縁
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.stickX, this.stickY, this.stickRadius, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+
+let joystick = new VirtualJoystick();
 
 // プレイヤークラス
 class Player {
@@ -81,18 +175,10 @@ class Player {
         if (keys.a) this.x -= this.speed;
         if (keys.d) this.x += this.speed;
 
-        // タッチ操作（タッチ位置に向かって移動）
-        if (touchActive) {
-            const dx = touchTarget.x - this.x;
-            const dy = touchTarget.y - this.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            // タッチ位置まで一定距離以上ある場合のみ移動
-            if (distance > 5) {
-                const moveSpeed = Math.min(this.speed, distance);
-                this.x += (dx / distance) * moveSpeed;
-                this.y += (dy / distance) * moveSpeed;
-            }
+        // バーチャルジョイスティック操作
+        if (joystick.active) {
+            this.x += joystick.direction.x * this.speed;
+            this.y += joystick.direction.y * this.speed;
         }
 
         // 画面外に出ないようにする
@@ -462,6 +548,9 @@ function gameLoop(currentTime) {
         enemy.draw();
     });
 
+    // ジョイスティック描画
+    joystick.draw(ctx);
+
     updateUI();
 }
 
@@ -480,7 +569,7 @@ window.addEventListener('keyup', (e) => {
     }
 });
 
-// タッチイベント（スマホ対応）
+// タッチイベント（スマホ対応 - バーチャルジョイスティック）
 function getTouchPos(e) {
     const rect = canvas.getBoundingClientRect();
     const touch = e.touches[0] || e.changedTouches[0];
@@ -495,28 +584,25 @@ canvas.addEventListener('touchstart', (e) => {
     if (gameState !== 'playing') return;
 
     const pos = getTouchPos(e);
-    touchActive = true;
-    touchTarget.x = pos.x;
-    touchTarget.y = pos.y;
+    joystick.start(pos.x, pos.y);
 });
 
 canvas.addEventListener('touchmove', (e) => {
     e.preventDefault();
-    if (gameState !== 'playing' || !touchActive) return;
+    if (gameState !== 'playing') return;
 
     const pos = getTouchPos(e);
-    touchTarget.x = pos.x;
-    touchTarget.y = pos.y;
+    joystick.move(pos.x, pos.y);
 });
 
 canvas.addEventListener('touchend', (e) => {
     e.preventDefault();
-    touchActive = false;
+    joystick.end();
 });
 
 canvas.addEventListener('touchcancel', (e) => {
     e.preventDefault();
-    touchActive = false;
+    joystick.end();
 });
 
 document.getElementById('startBtn').addEventListener('click', () => {
