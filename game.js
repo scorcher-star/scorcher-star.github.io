@@ -296,7 +296,57 @@ class Enemy {
     }
 }
 
-// 弾丸クラス
+// 経験値アイテムクラス
+class ExpItem {
+    constructor(x, y, value) {
+        this.x = x;
+        this.y = y;
+        this.width = 12;
+        this.height = 12;
+        this.value = value;
+        this.magnetRange = 80; // プレイヤーを引き寄せる範囲
+        this.magnetSpeed = 2; // 引き寄せられる速度
+    }
+
+    update() {
+        // プレイヤーとの距離を計算
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // プレイヤーが一定範囲内にいたら引き寄せられる
+        if (distance < this.magnetRange) {
+            const moveSpeed = this.magnetSpeed;
+            this.x += (dx / distance) * moveSpeed;
+            this.y += (dy / distance) * moveSpeed;
+        }
+
+        // プレイヤーと接触したかチェック
+        if (distance < (this.width + player.width) / 2) {
+            player.gainExp(this.value);
+            return true; // 削除フラグ
+        }
+
+        return false;
+    }
+
+    draw() {
+        // 経験値の結晶を描画
+        ctx.fillStyle = '#00FFFF';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 光る効果
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+
+// 弾丸クラス（基本弾）
 class Projectile {
     constructor(x, y, targetX, targetY, damage = 1) {
         this.x = x;
@@ -305,6 +355,7 @@ class Projectile {
         this.height = 8;
         this.speed = 7;
         this.damage = damage;
+        this.type = 'basic';
 
         const dx = targetX - x;
         const dy = targetY - y;
@@ -337,16 +388,165 @@ class Projectile {
     }
 }
 
+// スパイラル鎌クラス
+class SpiralScythe {
+    constructor(x, y, angle, damage = 2) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 20;
+        this.damage = damage;
+        this.type = 'scythe';
+        this.angle = angle; // 初期角度
+        this.spiralRadius = 50; // スパイラルの半径
+        this.spiralSpeed = 0.1; // 回転速度
+        this.lifetime = 200; // 長めの寿命
+        this.centerX = x;
+        this.centerY = y;
+    }
+
+    update() {
+        // スパイラル運動
+        this.angle += this.spiralSpeed;
+        this.spiralRadius += 1; // 徐々に外側へ
+
+        this.x = this.centerX + Math.cos(this.angle) * this.spiralRadius;
+        this.y = this.centerY + Math.sin(this.angle) * this.spiralRadius;
+
+        this.lifetime--;
+        return this.lifetime > 0 &&
+               this.x > -50 && this.x < canvas.width + 50 &&
+               this.y > -50 && this.y < canvas.height + 50;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // 鎌の形状
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(-3, -this.height / 2, 6, this.height); // 柄
+
+        ctx.fillStyle = '#C0C0C0';
+        ctx.beginPath();
+        ctx.arc(0, -this.height / 2, this.width / 2, 0, Math.PI, true);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    checkCollision(enemy) {
+        return Math.abs(this.x - enemy.x) < (this.width + enemy.width) / 2 &&
+               Math.abs(this.y - enemy.y) < (this.height + enemy.height) / 2;
+    }
+}
+
+// ブーメランクラス
+class Boomerang {
+    constructor(x, y, targetX, targetY, damage = 3) {
+        this.x = x;
+        this.y = y;
+        this.startX = x;
+        this.startY = y;
+        this.width = 15;
+        this.height = 15;
+        this.damage = damage;
+        this.type = 'boomerang';
+        this.speed = 6;
+        this.lifetime = 150;
+        this.returning = false;
+        this.rotationAngle = 0;
+
+        const dx = targetX - x;
+        const dy = targetY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        this.vx = (dx / distance) * this.speed;
+        this.vy = (dy / distance) * this.speed;
+        this.hitEnemies = new Set(); // 同じ敵に複数回当たらないようにする
+    }
+
+    update() {
+        // 一定時間後に戻ってくる
+        if (!this.returning && this.lifetime < 75) {
+            this.returning = true;
+        }
+
+        if (this.returning) {
+            // プレイヤーに向かって戻る
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 5) {
+                this.vx = (dx / distance) * this.speed;
+                this.vy = (dy / distance) * this.speed;
+            } else {
+                // プレイヤーに到達したら削除
+                return false;
+            }
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+        this.rotationAngle += 0.3; // 回転エフェクト
+        this.lifetime--;
+
+        return this.lifetime > 0;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotationAngle);
+
+        // ブーメランの形状
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(-this.width / 2, 0);
+        ctx.arc(0, 0, this.width / 2, Math.PI, 0, false);
+        ctx.lineTo(this.width / 2, 0);
+        ctx.arc(0, 0, this.width / 2, 0, Math.PI, false);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#FFA500';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    checkCollision(enemy) {
+        // すでにヒットした敵はスキップ
+        if (this.hitEnemies.has(enemy)) {
+            return false;
+        }
+
+        const hit = Math.abs(this.x - enemy.x) < (this.width + enemy.width) / 2 &&
+                    Math.abs(this.y - enemy.y) < (this.height + enemy.height) / 2;
+
+        if (hit) {
+            this.hitEnemies.add(enemy);
+        }
+
+        return hit;
+    }
+}
+
 // ゲームオブジェクト
 let player;
 let enemies = [];
 let projectiles = [];
 let weapons = [];
+let expItems = []; // 経験値アイテム配列
 
 // 武器システム
 class Weapon {
-    constructor(name, damage, cooldown, count = 1) {
+    constructor(name, type, damage, cooldown, count = 1) {
         this.name = name;
+        this.type = type; // 'basic', 'scythe', 'boomerang'
         this.damage = damage;
         this.cooldown = cooldown;
         this.lastFire = 0;
@@ -358,18 +558,42 @@ class Weapon {
     }
 
     fire() {
-        if (!this.canFire() || enemies.length === 0) return;
+        if (!this.canFire()) return;
 
-        // 最も近い敵を見つけて攻撃
-        const sortedEnemies = [...enemies].sort((a, b) => {
-            const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
-            const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
-            return distA - distB;
-        });
+        if (this.type === 'basic') {
+            if (enemies.length === 0) return;
 
-        for (let i = 0; i < Math.min(this.count, sortedEnemies.length); i++) {
-            const target = sortedEnemies[i];
-            projectiles.push(new Projectile(player.x, player.y, target.x, target.y, this.damage));
+            // 最も近い敵を見つけて攻撃
+            const sortedEnemies = [...enemies].sort((a, b) => {
+                const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
+                const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
+                return distA - distB;
+            });
+
+            for (let i = 0; i < Math.min(this.count, sortedEnemies.length); i++) {
+                const target = sortedEnemies[i];
+                projectiles.push(new Projectile(player.x, player.y, target.x, target.y, this.damage));
+            }
+        } else if (this.type === 'scythe') {
+            // スパイラル鎌は複数の角度から発射
+            for (let i = 0; i < this.count; i++) {
+                const angle = (Math.PI * 2 / this.count) * i;
+                projectiles.push(new SpiralScythe(player.x, player.y, angle, this.damage));
+            }
+        } else if (this.type === 'boomerang') {
+            if (enemies.length === 0) return;
+
+            // ブーメランは近い敵に向かって投げる
+            const sortedEnemies = [...enemies].sort((a, b) => {
+                const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
+                const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
+                return distA - distB;
+            });
+
+            for (let i = 0; i < Math.min(this.count, sortedEnemies.length); i++) {
+                const target = sortedEnemies[i];
+                projectiles.push(new Boomerang(player.x, player.y, target.x, target.y, this.damage));
+            }
         }
 
         this.lastFire = Date.now();
@@ -377,18 +601,46 @@ class Weapon {
 
     upgrade() {
         this.damage += 1;
-        this.count += 1;
+        if (this.type === 'basic') {
+            this.count += 1;
+        } else if (this.type === 'scythe') {
+            this.count = Math.min(8, this.count + 1); // 最大8本まで
+        } else if (this.type === 'boomerang') {
+            this.count = Math.min(3, this.count + 1); // 最大3本まで
+        }
     }
 }
 
 // アップグレードオプション
 const upgradeTemplates = [
-    { name: '攻撃力+1', apply: () => { if(weapons[0]) weapons[0].damage += 1; } },
-    { name: '攻撃速度+20%', apply: () => { if(weapons[0]) weapons[0].cooldown *= 0.8; } },
-    { name: '弾数+1', apply: () => { if(weapons[0]) weapons[0].count += 1; } },
+    { name: '攻撃力+1', apply: () => { weapons.forEach(w => w.damage += 1); } },
+    { name: '攻撃速度+20%', apply: () => { weapons.forEach(w => w.cooldown *= 0.8); } },
+    { name: '弾数+1', apply: () => { if(weapons[0]) weapons[0].upgrade(); } },
     { name: '最大体力+20', apply: () => { player.maxHealth += 20; player.health += 20; } },
     { name: '移動速度+10%', apply: () => { player.speed *= 1.1; } },
-    { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } }
+    { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } },
+    {
+        name: 'スパイラル鎌',
+        apply: () => {
+            const existing = weapons.find(w => w.type === 'scythe');
+            if (existing) {
+                existing.upgrade();
+            } else {
+                weapons.push(new Weapon('スパイラル鎌', 'scythe', 2, 2000, 3));
+            }
+        }
+    },
+    {
+        name: 'ブーメラン',
+        apply: () => {
+            const existing = weapons.find(w => w.type === 'boomerang');
+            if (existing) {
+                existing.upgrade();
+            } else {
+                weapons.push(new Weapon('ブーメラン', 'boomerang', 3, 3000, 1));
+            }
+        }
+    }
 ];
 
 // 敵のスポーン
@@ -464,7 +716,8 @@ function initGame() {
     player = new Player(canvas.width / 2, canvas.height / 2);
     enemies = [];
     projectiles = [];
-    weapons = [new Weapon('基本攻撃', 1, 500, 1)]; // クールダウンを500msに短縮
+    expItems = [];
+    weapons = [new Weapon('基本攻撃', 'basic', 1, 500, 1)]; // クールダウンを500msに短縮
     gameTime = 0;
     score = 0;
     lastTime = performance.now(); // Date.now()から変更
@@ -473,7 +726,19 @@ function initGame() {
 
 // ゲームループ
 let enemySpawnTimer = 0;
-const enemySpawnInterval = 1000; // 1秒ごとに変更（より早く敵が出現）
+let enemySpawnInterval = 1000; // 初期は1秒ごと
+
+// 敵の出現数を時間に応じて計算
+function getEnemySpawnCount() {
+    // 30秒ごとに1体ずつ増加、最大10体まで
+    return Math.min(10, Math.floor(gameTime / 30) + 1);
+}
+
+// 敵の出現間隔を時間に応じて計算
+function getEnemySpawnInterval() {
+    // 60秒ごとに100ms短縮、最低500msまで
+    return Math.max(500, 1000 - Math.floor(gameTime / 60) * 100);
+}
 
 function gameLoop(currentTime) {
     requestAnimationFrame(gameLoop);
@@ -521,8 +786,9 @@ function gameLoop(currentTime) {
             for (let i = enemies.length - 1; i >= 0; i--) {
                 if (proj.checkCollision(enemies[i])) {
                     if (enemies[i].takeDamage(proj.damage)) {
+                        // 敵を倒したら経験値アイテムをドロップ
+                        expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
                         score += enemies[i].expValue;
-                        player.gainExp(enemies[i].expValue);
                         enemies.splice(i, 1);
                     }
                     return false; // 弾丸削除
@@ -532,10 +798,11 @@ function gameLoop(currentTime) {
         return alive;
     });
 
-    // 敵のスポーン
+    // 敵のスポーン（動的に出現数と間隔を調整）
+    enemySpawnInterval = getEnemySpawnInterval();
     enemySpawnTimer += deltaTime;
     if (enemySpawnTimer > enemySpawnInterval) {
-        const spawnCount = Math.min(5, Math.floor(gameTime / 30) + 1);
+        const spawnCount = getEnemySpawnCount();
         for (let i = 0; i < spawnCount; i++) {
             spawnEnemy();
         }
@@ -546,6 +813,15 @@ function gameLoop(currentTime) {
     enemies.forEach(enemy => {
         enemy.update();
         enemy.draw();
+    });
+
+    // 経験値アイテム更新・描画
+    expItems = expItems.filter(item => {
+        const collected = item.update();
+        if (!collected) {
+            item.draw();
+        }
+        return !collected;
     });
 
     // ジョイスティック描画
