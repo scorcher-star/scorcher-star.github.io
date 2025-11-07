@@ -235,17 +235,65 @@ class Player {
 
 // 敵クラス
 class Enemy {
-    constructor(x, y, type = 'normal') {
+    constructor(x, y, tier = 1) {
         this.x = x;
         this.y = y;
         this.width = 25;
         this.height = 25;
-        this.speed = 1.5;
-        this.health = 3;
-        this.maxHealth = 3;
-        this.damage = 10;
-        this.expValue = 5;
-        this.type = type;
+        this.tier = tier;
+
+        // ティアに応じてステータスを設定
+        switch(tier) {
+            case 1: // 非常に弱い (0-60秒)
+                this.speed = 0.8;
+                this.health = 2;
+                this.maxHealth = 2;
+                this.damage = 5;
+                this.expValue = 3;
+                this.color = '#FFB3BA'; // 薄いピンク
+                break;
+            case 2: // 弱い (60-120秒)
+                this.speed = 1.2;
+                this.health = 4;
+                this.maxHealth = 4;
+                this.damage = 8;
+                this.expValue = 5;
+                this.color = '#FFDFBA'; // 薄いオレンジ
+                break;
+            case 3: // 普通 (120-180秒)
+                this.speed = 1.5;
+                this.health = 6;
+                this.maxHealth = 6;
+                this.damage = 12;
+                this.expValue = 8;
+                this.color = '#F44336'; // 赤
+                break;
+            case 4: // 強い (180-240秒)
+                this.speed = 1.8;
+                this.health = 9;
+                this.maxHealth = 9;
+                this.damage = 16;
+                this.expValue = 12;
+                this.color = '#D32F2F'; // 濃い赤
+                break;
+            case 5: // 非常に強い (240秒以降)
+                this.speed = 2.0;
+                this.health = 12;
+                this.maxHealth = 12;
+                this.damage = 20;
+                this.expValue = 15;
+                this.color = '#B71C1C'; // 最も濃い赤
+                break;
+            default:
+                this.speed = 1.5;
+                this.health = 3;
+                this.maxHealth = 3;
+                this.damage = 10;
+                this.expValue = 5;
+                this.color = '#F44336';
+        }
+
+        this.type = 'normal';
         this.lastDamageTime = 0;
     }
 
@@ -271,8 +319,8 @@ class Enemy {
     }
 
     draw() {
-        // 敵の体
-        ctx.fillStyle = '#F44336';
+        // 敵の体（ティアに応じた色）
+        ctx.fillStyle = this.color;
         ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
 
         // 体力バー
@@ -600,7 +648,7 @@ class Weapon {
     }
 
     upgrade() {
-        this.damage += 1;
+        this.damage += 0.5; // より段階的なダメージ増加
         if (this.type === 'basic') {
             this.count += 1;
         } else if (this.type === 'scythe') {
@@ -613,12 +661,12 @@ class Weapon {
 
 // アップグレードオプション
 const upgradeTemplates = [
-    { name: '攻撃力+1', apply: () => { weapons.forEach(w => w.damage += 1); } },
-    { name: '攻撃速度+20%', apply: () => { weapons.forEach(w => w.cooldown *= 0.8); } },
+    { name: '攻撃力+0.5', apply: () => { weapons.forEach(w => w.damage += 0.5); } },
+    { name: '攻撃速度+10%', apply: () => { weapons.forEach(w => w.cooldown *= 0.9); } },
     { name: '弾数+1', apply: () => { if(weapons[0]) weapons[0].upgrade(); } },
-    { name: '最大体力+20', apply: () => { player.maxHealth += 20; player.health += 20; } },
-    { name: '移動速度+10%', apply: () => { player.speed *= 1.1; } },
-    { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } },
+    { name: '最大体力+15', apply: () => { player.maxHealth += 15; player.health += 15; } },
+    { name: '移動速度+8%', apply: () => { player.speed *= 1.08; } },
+    { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 25); } },
     {
         name: 'スパイラル鎌',
         apply: () => {
@@ -626,7 +674,7 @@ const upgradeTemplates = [
             if (existing) {
                 existing.upgrade();
             } else {
-                weapons.push(new Weapon('スパイラル鎌', 'scythe', 2, 2000, 3));
+                weapons.push(new Weapon('スパイラル鎌', 'scythe', 1, 3000, 2));
             }
         }
     },
@@ -637,13 +685,13 @@ const upgradeTemplates = [
             if (existing) {
                 existing.upgrade();
             } else {
-                weapons.push(new Weapon('ブーメラン', 'boomerang', 3, 3000, 1));
+                weapons.push(new Weapon('ブーメラン', 'boomerang', 1.5, 4000, 1));
             }
         }
     }
 ];
 
-// 敵のスポーン
+// 敵のスポーン（時間に応じたティア）
 function spawnEnemy() {
     const side = Math.floor(Math.random() * 4);
     let x, y;
@@ -655,7 +703,26 @@ function spawnEnemy() {
         case 3: x = -30; y = Math.random() * canvas.height; break;
     }
 
-    enemies.push(new Enemy(x, y));
+    // 時間に応じて敵のティアを決定
+    let tier = 1;
+    if (gameTime >= 240) {
+        // 240秒以降: ティア4-5の敵を出現させる
+        tier = Math.random() < 0.5 ? 4 : 5;
+    } else if (gameTime >= 180) {
+        // 180-240秒: ティア3-4の敵を出現させる
+        tier = Math.random() < 0.5 ? 3 : 4;
+    } else if (gameTime >= 120) {
+        // 120-180秒: ティア2-3の敵を出現させる
+        tier = Math.random() < 0.5 ? 2 : 3;
+    } else if (gameTime >= 60) {
+        // 60-120秒: ティア1-2の敵を出現させる
+        tier = Math.random() < 0.5 ? 1 : 2;
+    } else {
+        // 0-60秒: ティア1の敵のみ
+        tier = 1;
+    }
+
+    enemies.push(new Enemy(x, y, tier));
 }
 
 // レベルアップメニュー表示
@@ -717,7 +784,7 @@ function initGame() {
     enemies = [];
     projectiles = [];
     expItems = [];
-    weapons = [new Weapon('基本攻撃', 'basic', 1, 500, 1)]; // クールダウンを500msに短縮
+    weapons = [new Weapon('基本攻撃', 'basic', 0.5, 1000, 1)]; // より弱く、遅くスタート
     gameTime = 0;
     score = 0;
     lastTime = performance.now(); // Date.now()から変更
@@ -730,14 +797,14 @@ let enemySpawnInterval = 1000; // 初期は1秒ごと
 
 // 敵の出現数を時間に応じて計算
 function getEnemySpawnCount() {
-    // 30秒ごとに1体ずつ増加、最大10体まで
-    return Math.min(10, Math.floor(gameTime / 30) + 1);
+    // 45秒ごとに1体ずつ増加、最大8体まで（よりゆっくりと）
+    return Math.min(8, Math.floor(gameTime / 45) + 1);
 }
 
 // 敵の出現間隔を時間に応じて計算
 function getEnemySpawnInterval() {
-    // 60秒ごとに100ms短縮、最低500msまで
-    return Math.max(500, 1000 - Math.floor(gameTime / 60) * 100);
+    // 90秒ごとに100ms短縮、最低600msまで（よりゆっくりと）
+    return Math.max(600, 1200 - Math.floor(gameTime / 90) * 100);
 }
 
 function gameLoop(currentTime) {
