@@ -44,6 +44,35 @@ body {
     right: 10px;
 }
 
+.weapon-icons {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.weapon-icon {
+    background: rgba(0, 0, 0, 0.8);
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 2px solid #4CAF50;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.weapon-icon .icon {
+    font-size: 20px;
+}
+
+.weapon-icon .level {
+    color: #FFC107;
+    font-size: 12px;
+}
+
 .stats {
     background: rgba(0, 0, 0, 0.7);
     padding: 15px;

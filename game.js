@@ -238,15 +238,42 @@ class Enemy {
     constructor(x, y, type = 'normal') {
         this.x = x;
         this.y = y;
-        this.width = 25;
-        this.height = 25;
-        this.speed = 1.5;
-        this.health = 3;
-        this.maxHealth = 3;
-        this.damage = 10;
-        this.expValue = 5;
         this.type = type;
         this.lastDamageTime = 0;
+
+        // 敵タイプ別のステータス設定
+        if (type === 'swarm') {
+            // 群れ敵：小さくて弱いが、大量に出現（ハチ）
+            this.width = 15;
+            this.height = 15;
+            this.speed = 2.5;
+            this.health = 1;
+            this.maxHealth = 1;
+            this.damage = 5;
+            this.expValue = 2;
+            this.emoji = '🐝';
+        } else if (type === 'tank') {
+            // タンク敵：大きくて硬い、確実にレベルアップアイテムを落とす（ロボット）
+            this.width = 40;
+            this.height = 40;
+            this.speed = 0.8;
+            this.health = 20;
+            this.maxHealth = 20;
+            this.damage = 20;
+            this.expValue = 30;
+            this.emoji = '🤖';
+            this.guaranteedDrop = true;
+        } else {
+            // 通常敵（エイリアン）
+            this.width = 25;
+            this.height = 25;
+            this.speed = 1.2;
+            this.health = 3;
+            this.maxHealth = 3;
+            this.damage = 10;
+            this.expValue = 5;
+            this.emoji = '👾';
+        }
     }
 
     update() {
@@ -271,17 +298,21 @@ class Enemy {
     }
 
     draw() {
-        // 敵の体
-        ctx.fillStyle = '#F44336';
-        ctx.fillRect(this.x - this.width / 2, this.y - this.height / 2, this.width, this.height);
+        // 絵文字で敵を描画
+        ctx.font = `${this.width}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.emoji, this.x, this.y);
 
-        // 体力バー
+        // 体力バー（タンク敵は少し大きめ）
         const healthBarWidth = this.width;
-        const healthBarHeight = 3;
+        const healthBarHeight = this.type === 'tank' ? 5 : 3;
+        const healthBarY = this.y - this.height / 2 - (this.type === 'tank' ? 15 : 10);
+
         ctx.fillStyle = '#000';
-        ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.height / 2 - 8, healthBarWidth, healthBarHeight);
+        ctx.fillRect(this.x - healthBarWidth / 2, healthBarY, healthBarWidth, healthBarHeight);
         ctx.fillStyle = '#0F0';
-        ctx.fillRect(this.x - healthBarWidth / 2, this.y - this.height / 2 - 8,
+        ctx.fillRect(this.x - healthBarWidth / 2, healthBarY,
                      healthBarWidth * (this.health / this.maxHealth), healthBarHeight);
     }
 
@@ -442,6 +473,179 @@ class SpiralScythe {
     }
 }
 
+// 反射レーザークラス
+class ReflectingLaser {
+    constructor(x, y, angle, damage = 2) {
+        this.x = x;
+        this.y = y;
+        this.width = 4;
+        this.height = 4;
+        this.damage = damage;
+        this.type = 'laser';
+        this.speed = 10;
+        this.lifetime = 300;
+        this.reflections = 0;
+        this.maxReflections = 5;
+
+        this.vx = Math.cos(angle) * this.speed;
+        this.vy = Math.sin(angle) * this.speed;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // 画面端で反射
+        if (this.x <= 0 || this.x >= canvas.width) {
+            this.vx = -this.vx;
+            this.x = Math.max(0, Math.min(canvas.width, this.x));
+            this.reflections++;
+        }
+        if (this.y <= 0 || this.y >= canvas.height) {
+            this.vy = -this.vy;
+            this.y = Math.max(0, Math.min(canvas.height, this.y));
+            this.reflections++;
+        }
+
+        this.lifetime--;
+        return this.lifetime > 0 && this.reflections < this.maxReflections;
+    }
+
+    draw() {
+        // レーザー本体
+        ctx.fillStyle = '#00FFFF';
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.width, 0, Math.PI * 2);
+        ctx.fill();
+
+        // レーザーの軌跡（光の効果）
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 10);
+        gradient.addColorStop(0, 'rgba(0, 255, 255, 0.5)');
+        gradient.addColorStop(1, 'rgba(0, 255, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 10, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    checkCollision(enemy) {
+        return Math.abs(this.x - enemy.x) < (this.width + enemy.width) / 2 &&
+               Math.abs(this.y - enemy.y) < (this.height + enemy.height) / 2;
+    }
+}
+
+// 爆発ボムクラス
+class ExplosiveBomb {
+    constructor(x, y, targetX, targetY, damage = 5) {
+        this.x = x;
+        this.y = y;
+        this.startX = x;
+        this.startY = y;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.width = 12;
+        this.height = 12;
+        this.damage = damage;
+        this.type = 'bomb';
+        this.speed = 4;
+        this.lifetime = 100;
+        this.exploded = false;
+        this.explosionRadius = 80;
+        this.explosionDuration = 20;
+        this.explosionTimer = 0;
+
+        // 放物線運動のパラメータ
+        const dx = targetX - x;
+        const dy = targetY - y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        this.vx = (dx / distance) * this.speed;
+        this.vy = (dy / distance) * this.speed;
+        this.arc = -0.15; // 上向きの弧を描く
+    }
+
+    update() {
+        if (!this.exploded) {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += this.arc; // 重力効果
+
+            // 目標地点に到達したら爆発
+            const distToTarget = Math.sqrt(
+                (this.x - this.targetX) ** 2 + (this.y - this.targetY) ** 2
+            );
+
+            if (distToTarget < 10 || this.lifetime <= 0) {
+                this.exploded = true;
+                this.explosionTimer = this.explosionDuration;
+            }
+
+            this.lifetime--;
+        } else {
+            this.explosionTimer--;
+            return this.explosionTimer > 0;
+        }
+
+        return true;
+    }
+
+    draw() {
+        if (!this.exploded) {
+            // ボム本体
+            ctx.fillStyle = '#FF4500';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.width / 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 導火線（点滅効果）
+            if (Math.floor(this.lifetime / 5) % 2 === 0) {
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - this.height / 2, 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            // 爆発エフェクト
+            const explosionProgress = 1 - (this.explosionTimer / this.explosionDuration);
+            const currentRadius = this.explosionRadius * explosionProgress;
+
+            // 外側の円
+            const outerGradient = ctx.createRadialGradient(
+                this.x, this.y, 0, this.x, this.y, currentRadius
+            );
+            outerGradient.addColorStop(0, 'rgba(255, 165, 0, 0.8)');
+            outerGradient.addColorStop(0.5, 'rgba(255, 69, 0, 0.5)');
+            outerGradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+            ctx.fillStyle = outerGradient;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, currentRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 内側の明るい円
+            const innerGradient = ctx.createRadialGradient(
+                this.x, this.y, 0, this.x, this.y, currentRadius * 0.5
+            );
+            innerGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+            innerGradient.addColorStop(1, 'rgba(255, 255, 0, 0)');
+
+            ctx.fillStyle = innerGradient;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, currentRadius * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    }
+
+    checkCollision(enemy) {
+        if (!this.exploded) return false;
+
+        const distance = Math.sqrt(
+            (this.x - enemy.x) ** 2 + (this.y - enemy.y) ** 2
+        );
+        return distance < this.explosionRadius;
+    }
+}
+
 // ブーメランクラス
 class Boomerang {
     constructor(x, y, targetX, targetY, damage = 3) {
@@ -546,11 +750,15 @@ let expItems = []; // 経験値アイテム配列
 class Weapon {
     constructor(name, type, damage, cooldown, count = 1) {
         this.name = name;
-        this.type = type; // 'basic', 'scythe', 'boomerang'
+        this.type = type; // 'basic', 'scythe', 'boomerang', 'laser', 'bomb'
         this.damage = damage;
+        this.baseDamage = damage;
         this.cooldown = cooldown;
+        this.baseCooldown = cooldown;
         this.lastFire = 0;
-        this.count = count; // 同時発射数
+        this.count = count;
+        this.level = 1; // 武器レベル
+        this.maxLevel = 5; // 最大レベル
     }
 
     canFire() {
@@ -563,7 +771,6 @@ class Weapon {
         if (this.type === 'basic') {
             if (enemies.length === 0) return;
 
-            // 最も近い敵を見つけて攻撃
             const sortedEnemies = [...enemies].sort((a, b) => {
                 const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
                 const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
@@ -575,7 +782,6 @@ class Weapon {
                 projectiles.push(new Projectile(player.x, player.y, target.x, target.y, this.damage));
             }
         } else if (this.type === 'scythe') {
-            // スパイラル鎌は複数の角度から発射
             for (let i = 0; i < this.count; i++) {
                 const angle = (Math.PI * 2 / this.count) * i;
                 projectiles.push(new SpiralScythe(player.x, player.y, angle, this.damage));
@@ -583,7 +789,6 @@ class Weapon {
         } else if (this.type === 'boomerang') {
             if (enemies.length === 0) return;
 
-            // ブーメランは近い敵に向かって投げる
             const sortedEnemies = [...enemies].sort((a, b) => {
                 const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
                 const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
@@ -594,28 +799,78 @@ class Weapon {
                 const target = sortedEnemies[i];
                 projectiles.push(new Boomerang(player.x, player.y, target.x, target.y, this.damage));
             }
+        } else if (this.type === 'laser') {
+            // 反射レーザー：等間隔の角度で発射
+            for (let i = 0; i < this.count; i++) {
+                const angle = (Math.PI * 2 / this.count) * i + Date.now() * 0.001;
+                projectiles.push(new ReflectingLaser(player.x, player.y, angle, this.damage));
+            }
+        } else if (this.type === 'bomb') {
+            if (enemies.length === 0) return;
+
+            const sortedEnemies = [...enemies].sort((a, b) => {
+                const distA = Math.sqrt((a.x - player.x) ** 2 + (a.y - player.y) ** 2);
+                const distB = Math.sqrt((b.x - player.x) ** 2 + (b.y - player.y) ** 2);
+                return distA - distB;
+            });
+
+            for (let i = 0; i < Math.min(this.count, sortedEnemies.length); i++) {
+                const target = sortedEnemies[i];
+                projectiles.push(new ExplosiveBomb(player.x, player.y, target.x, target.y, this.damage));
+            }
         }
 
         this.lastFire = Date.now();
     }
 
     upgrade() {
-        this.damage += 1;
-        if (this.type === 'basic') {
-            this.count += 1;
-        } else if (this.type === 'scythe') {
-            this.count = Math.min(8, this.count + 1); // 最大8本まで
-        } else if (this.type === 'boomerang') {
-            this.count = Math.min(3, this.count + 1); // 最大3本まで
+        if (this.level >= this.maxLevel) return false;
+
+        this.level++;
+
+        // レベルに応じたダメージとクールダウン向上
+        this.damage = Math.floor(this.baseDamage * (1 + (this.level - 1) * 0.5));
+        this.cooldown = Math.floor(this.baseCooldown * Math.pow(0.9, this.level - 1));
+
+        // 特定レベルで弾数増加
+        if (this.level === 2 || this.level === 4) {
+            if (this.type === 'basic' || this.type === 'bomb') {
+                this.count += 1;
+            } else if (this.type === 'scythe' || this.type === 'laser') {
+                this.count = Math.min(8, this.count + 1);
+            } else if (this.type === 'boomerang') {
+                this.count = Math.min(3, this.count + 1);
+            }
         }
+
+        return true;
+    }
+
+    getIcon() {
+        // 武器タイプに応じたアイコン文字列
+        const icons = {
+            'basic': '🔫',
+            'scythe': '🔪',
+            'boomerang': '🪃',
+            'laser': '⚡',
+            'bomb': '💣'
+        };
+        return icons[this.type] || '⚔️';
     }
 }
 
 // アップグレードオプション
 const upgradeTemplates = [
-    { name: '攻撃力+1', apply: () => { weapons.forEach(w => w.damage += 1); } },
-    { name: '攻撃速度+20%', apply: () => { weapons.forEach(w => w.cooldown *= 0.8); } },
-    { name: '弾数+1', apply: () => { if(weapons[0]) weapons[0].upgrade(); } },
+    {
+        name: '基本攻撃強化',
+        apply: () => {
+            const basic = weapons.find(w => w.type === 'basic');
+            if (basic && basic.upgrade()) {
+                return `Lv.${basic.level} ダメージ:${basic.damage}`;
+            }
+            return null;
+        }
+    },
     { name: '最大体力+20', apply: () => { player.maxHealth += 20; player.health += 20; } },
     { name: '移動速度+10%', apply: () => { player.speed *= 1.1; } },
     { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } },
@@ -624,9 +879,13 @@ const upgradeTemplates = [
         apply: () => {
             const existing = weapons.find(w => w.type === 'scythe');
             if (existing) {
-                existing.upgrade();
+                if (existing.upgrade()) {
+                    return `Lv.${existing.level}`;
+                }
+                return null;
             } else {
-                weapons.push(new Weapon('スパイラル鎌', 'scythe', 2, 2000, 3));
+                weapons.push(new Weapon('スパイラル鎌', 'scythe', 1, 2500, 2));
+                return 'NEW!';
             }
         }
     },
@@ -635,16 +894,50 @@ const upgradeTemplates = [
         apply: () => {
             const existing = weapons.find(w => w.type === 'boomerang');
             if (existing) {
-                existing.upgrade();
+                if (existing.upgrade()) {
+                    return `Lv.${existing.level}`;
+                }
+                return null;
             } else {
-                weapons.push(new Weapon('ブーメラン', 'boomerang', 3, 3000, 1));
+                weapons.push(new Weapon('ブーメラン', 'boomerang', 2, 3500, 1));
+                return 'NEW!';
+            }
+        }
+    },
+    {
+        name: '反射レーザー',
+        apply: () => {
+            const existing = weapons.find(w => w.type === 'laser');
+            if (existing) {
+                if (existing.upgrade()) {
+                    return `Lv.${existing.level}`;
+                }
+                return null;
+            } else {
+                weapons.push(new Weapon('反射レーザー', 'laser', 1, 1500, 2));
+                return 'NEW!';
+            }
+        }
+    },
+    {
+        name: '爆発ボム',
+        apply: () => {
+            const existing = weapons.find(w => w.type === 'bomb');
+            if (existing) {
+                if (existing.upgrade()) {
+                    return `Lv.${existing.level}`;
+                }
+                return null;
+            } else {
+                weapons.push(new Weapon('爆発ボム', 'bomb', 3, 4000, 1));
+                return 'NEW!';
             }
         }
     }
 ];
 
 // 敵のスポーン
-function spawnEnemy() {
+function spawnEnemy(type = null) {
     const side = Math.floor(Math.random() * 4);
     let x, y;
 
@@ -655,7 +948,30 @@ function spawnEnemy() {
         case 3: x = -30; y = Math.random() * canvas.height; break;
     }
 
-    enemies.push(new Enemy(x, y));
+    // タイプが指定されていない場合は、時間に応じて決定
+    if (!type) {
+        const rand = Math.random();
+
+        if (gameTime < 30) {
+            // 最初の30秒は通常敵のみ
+            type = 'normal';
+        } else if (gameTime < 60) {
+            // 30-60秒：通常と群れ敵
+            type = rand < 0.7 ? 'normal' : 'swarm';
+        } else if (gameTime < 120) {
+            // 60-120秒：全タイプ、タンクは稀
+            if (rand < 0.5) type = 'normal';
+            else if (rand < 0.85) type = 'swarm';
+            else type = 'tank';
+        } else {
+            // 120秒以降：バランス良く出現
+            if (rand < 0.4) type = 'normal';
+            else if (rand < 0.75) type = 'swarm';
+            else type = 'tank';
+        }
+    }
+
+    enemies.push(new Enemy(x, y, type));
 }
 
 // レベルアップメニュー表示
@@ -692,6 +1008,29 @@ function showGameOver() {
     menu.classList.remove('hidden');
 }
 
+// 武器アイコンを更新
+function updateWeaponIcons() {
+    const iconsDiv = document.getElementById('weaponIcons');
+    iconsDiv.innerHTML = '';
+
+    weapons.forEach(weapon => {
+        const iconDiv = document.createElement('div');
+        iconDiv.className = 'weapon-icon';
+
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'icon';
+        iconSpan.textContent = weapon.getIcon();
+
+        const levelSpan = document.createElement('span');
+        levelSpan.className = 'level';
+        levelSpan.textContent = `Lv.${weapon.level}`;
+
+        iconDiv.appendChild(iconSpan);
+        iconDiv.appendChild(levelSpan);
+        iconsDiv.appendChild(iconDiv);
+    });
+}
+
 // UI更新
 function updateUI() {
     document.getElementById('level').textContent = player.level;
@@ -703,6 +1042,8 @@ function updateUI() {
 
     const expPercent = (player.exp / player.expToNextLevel) * 100;
     document.getElementById('expBar').style.width = expPercent + '%';
+
+    updateWeaponIcons();
 }
 
 function formatTime(seconds) {
@@ -717,7 +1058,7 @@ function initGame() {
     enemies = [];
     projectiles = [];
     expItems = [];
-    weapons = [new Weapon('基本攻撃', 'basic', 1, 500, 1)]; // クールダウンを500msに短縮
+    weapons = [new Weapon('基本攻撃', 'basic', 1, 1000, 1)]; // 初期は弱め
     gameTime = 0;
     score = 0;
     lastTime = performance.now(); // Date.now()から変更
@@ -782,16 +1123,33 @@ function gameLoop(currentTime) {
         if (alive) {
             proj.draw();
 
-            // 敵との衝突チェック
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                if (proj.checkCollision(enemies[i])) {
-                    if (enemies[i].takeDamage(proj.damage)) {
-                        // 敵を倒したら経験値アイテムをドロップ
-                        expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
-                        score += enemies[i].expValue;
-                        enemies.splice(i, 1);
+            // 爆発ボムの場合は、爆発した時に範囲内の敵全てにダメージ
+            if (proj.type === 'bomb' && proj.exploded) {
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    if (proj.checkCollision(enemies[i])) {
+                        if (enemies[i].takeDamage(proj.damage)) {
+                            // 敵を倒したら経験値アイテムをドロップ
+                            expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
+                            score += enemies[i].expValue;
+                            enemies.splice(i, 1);
+                        }
                     }
-                    return false; // 弾丸削除
+                }
+            } else if (proj.type !== 'bomb') {
+                // 通常の弾丸の衝突チェック
+                for (let i = enemies.length - 1; i >= 0; i--) {
+                    if (proj.checkCollision(enemies[i])) {
+                        if (enemies[i].takeDamage(proj.damage)) {
+                            // 敵を倒したら経験値アイテムをドロップ
+                            expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
+                            score += enemies[i].expValue;
+                            enemies.splice(i, 1);
+                        }
+                        // レーザーは貫通するため削除しない
+                        if (proj.type !== 'laser') {
+                            return false; // 弾丸削除
+                        }
+                    }
                 }
             }
         }
@@ -804,9 +1162,62 @@ function gameLoop(currentTime) {
     if (enemySpawnTimer > enemySpawnInterval) {
         const spawnCount = getEnemySpawnCount();
         for (let i = 0; i < spawnCount; i++) {
-            spawnEnemy();
+            const enemyType = determineEnemyType();
+
+            // 群れ敵の場合は、3-5匹まとめてスポーン
+            if (enemyType === 'swarm') {
+                const swarmCount = Math.floor(Math.random() * 3) + 3; // 3-5匹
+                const side = Math.floor(Math.random() * 4);
+
+                for (let j = 0; j < swarmCount; j++) {
+                    let x, y;
+                    const offset = (Math.random() - 0.5) * 100; // ランダムなオフセット
+
+                    switch(side) {
+                        case 0:
+                            x = Math.random() * canvas.width;
+                            y = -30 + offset;
+                            break;
+                        case 1:
+                            x = canvas.width + 30 + offset;
+                            y = Math.random() * canvas.height;
+                            break;
+                        case 2:
+                            x = Math.random() * canvas.width;
+                            y = canvas.height + 30 + offset;
+                            break;
+                        case 3:
+                            x = -30 + offset;
+                            y = Math.random() * canvas.height;
+                            break;
+                    }
+
+                    enemies.push(new Enemy(x, y, 'swarm'));
+                }
+            } else {
+                spawnEnemy(enemyType);
+            }
         }
         enemySpawnTimer = 0;
+    }
+
+    // 敵のタイプを決定する関数
+    function determineEnemyType() {
+        const rand = Math.random();
+
+        if (gameTime < 30) {
+            return 'normal';
+        } else if (gameTime < 60) {
+            return rand < 0.7 ? 'normal' : 'swarm';
+        } else if (gameTime < 120) {
+            if (rand < 0.4) return 'normal';
+            else if (rand < 0.85) return 'swarm';
+            else return 'tank';
+        } else {
+            if (rand < 0.35) return 'normal';
+            else if (rand < 0.75) return 'swarm';
+            else return 'tank';
+        }
     }
 
     // 敵更新・描画
