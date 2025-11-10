@@ -377,6 +377,136 @@ class ExpItem {
     }
 }
 
+// 体力回復アイテムクラス
+class HealthItem {
+    constructor(x, y, healAmount = 20) {
+        this.x = x;
+        this.y = y;
+        this.width = 20;
+        this.height = 20;
+        this.healAmount = healAmount;
+        this.magnetRange = 80;
+        this.magnetSpeed = 2;
+        this.pulsePhase = 0; // 脈動アニメーション用
+    }
+
+    update() {
+        this.pulsePhase += 0.1;
+
+        // プレイヤーとの距離を計算
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // プレイヤーが一定範囲内にいたら引き寄せられる
+        if (distance < this.magnetRange) {
+            const moveSpeed = this.magnetSpeed;
+            this.x += (dx / distance) * moveSpeed;
+            this.y += (dy / distance) * moveSpeed;
+        }
+
+        // プレイヤーと接触したかチェック
+        if (distance < (this.width + player.width) / 2) {
+            player.health = Math.min(player.maxHealth, player.health + this.healAmount);
+            return true; // 削除フラグ
+        }
+
+        return false;
+    }
+
+    draw() {
+        // ハートの絵文字で描画（脈動効果付き）
+        const pulseSize = this.width + Math.sin(this.pulsePhase) * 3;
+        ctx.font = `${pulseSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('❤️', this.x, this.y);
+
+        // 光るエフェクト
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, 15);
+        gradient.addColorStop(0, 'rgba(255, 100, 100, 0.5)');
+        gradient.addColorStop(1, 'rgba(255, 100, 100, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 15, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+// マグネットアイテムクラス（経験値を一気に集める）
+class MagnetItem {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+        this.width = 25;
+        this.height = 25;
+        this.magnetRange = 80;
+        this.magnetSpeed = 2;
+        this.pulsePhase = 0;
+        this.rotationPhase = 0;
+    }
+
+    update() {
+        this.pulsePhase += 0.15;
+        this.rotationPhase += 0.05;
+
+        // プレイヤーとの距離を計算
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // プレイヤーが一定範囲内にいたら引き寄せられる
+        if (distance < this.magnetRange) {
+            const moveSpeed = this.magnetSpeed;
+            this.x += (dx / distance) * moveSpeed;
+            this.y += (dy / distance) * moveSpeed;
+        }
+
+        // プレイヤーと接触したかチェック
+        if (distance < (this.width + player.width) / 2) {
+            // 画面上のすべての経験値アイテムをプレイヤーに引き寄せる
+            expItems.forEach(item => {
+                const expDx = player.x - item.x;
+                const expDy = player.y - item.y;
+                const expDistance = Math.sqrt(expDx * expDx + expDy * expDy);
+
+                if (expDistance > 0) {
+                    // 強力な引き寄せ効果
+                    item.x += (expDx / expDistance) * 15;
+                    item.y += (expDy / expDistance) * 15;
+                }
+            });
+            return true; // 削除フラグ
+        }
+
+        return false;
+    }
+
+    draw() {
+        // 磁石の絵文字で描画（回転＋脈動効果付き）
+        const pulseSize = this.width + Math.sin(this.pulsePhase) * 4;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.rotationPhase);
+        ctx.font = `${pulseSize}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🧲', 0, 0);
+        ctx.restore();
+
+        // 光る波動エフェクト
+        const waveSize = 20 + Math.sin(this.pulsePhase * 2) * 10;
+        const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, waveSize);
+        gradient.addColorStop(0, 'rgba(100, 100, 255, 0.3)');
+        gradient.addColorStop(1, 'rgba(100, 100, 255, 0)');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, waveSize, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
 // 弾丸クラス（基本弾）
 class Projectile {
     constructor(x, y, targetX, targetY, damage = 1) {
@@ -745,6 +875,8 @@ let enemies = [];
 let projectiles = [];
 let weapons = [];
 let expItems = []; // 経験値アイテム配列
+let healthItems = []; // 体力回復アイテム配列
+let magnetItems = []; // マグネットアイテム配列
 
 // 武器システム
 class Weapon {
@@ -873,7 +1005,6 @@ const upgradeTemplates = [
     },
     { name: '最大体力+20', apply: () => { player.maxHealth += 20; player.health += 20; } },
     { name: '移動速度+10%', apply: () => { player.speed *= 1.1; } },
-    { name: '体力回復', apply: () => { player.health = Math.min(player.maxHealth, player.health + 30); } },
     {
         name: 'スパイラル鎌',
         apply: () => {
@@ -1058,6 +1189,8 @@ function initGame() {
     enemies = [];
     projectiles = [];
     expItems = [];
+    healthItems = [];
+    magnetItems = [];
     weapons = [new Weapon('基本攻撃', 'basic', 1, 1000, 1)]; // 初期は弱め
     gameTime = 0;
     score = 0;
@@ -1128,9 +1261,25 @@ function gameLoop(currentTime) {
                 for (let i = enemies.length - 1; i >= 0; i--) {
                     if (proj.checkCollision(enemies[i])) {
                         if (enemies[i].takeDamage(proj.damage)) {
-                            // 敵を倒したら経験値アイテムをドロップ
-                            expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
-                            score += enemies[i].expValue;
+                            const enemy = enemies[i];
+                            // 経験値アイテムをドロップ
+                            expItems.push(new ExpItem(enemy.x, enemy.y, enemy.expValue));
+
+                            // タンク敵は30%の確率で体力回復アイテムをドロップ
+                            // 通常敵とハチは10%の確率でドロップ
+                            const healthDropChance = enemy.type === 'tank' ? 0.3 : 0.1;
+                            if (Math.random() < healthDropChance) {
+                                healthItems.push(new HealthItem(enemy.x, enemy.y, 20));
+                            }
+
+                            // タンク敵は20%の確率でマグネットアイテムをドロップ
+                            // 通常敵とハチは5%の確率でドロップ
+                            const magnetDropChance = enemy.type === 'tank' ? 0.2 : 0.05;
+                            if (Math.random() < magnetDropChance) {
+                                magnetItems.push(new MagnetItem(enemy.x, enemy.y));
+                            }
+
+                            score += enemy.expValue;
                             enemies.splice(i, 1);
                         }
                     }
@@ -1140,9 +1289,25 @@ function gameLoop(currentTime) {
                 for (let i = enemies.length - 1; i >= 0; i--) {
                     if (proj.checkCollision(enemies[i])) {
                         if (enemies[i].takeDamage(proj.damage)) {
-                            // 敵を倒したら経験値アイテムをドロップ
-                            expItems.push(new ExpItem(enemies[i].x, enemies[i].y, enemies[i].expValue));
-                            score += enemies[i].expValue;
+                            const enemy = enemies[i];
+                            // 経験値アイテムをドロップ
+                            expItems.push(new ExpItem(enemy.x, enemy.y, enemy.expValue));
+
+                            // タンク敵は30%の確率で体力回復アイテムをドロップ
+                            // 通常敵とハチは10%の確率でドロップ
+                            const healthDropChance = enemy.type === 'tank' ? 0.3 : 0.1;
+                            if (Math.random() < healthDropChance) {
+                                healthItems.push(new HealthItem(enemy.x, enemy.y, 20));
+                            }
+
+                            // タンク敵は20%の確率でマグネットアイテムをドロップ
+                            // 通常敵とハチは5%の確率でドロップ
+                            const magnetDropChance = enemy.type === 'tank' ? 0.2 : 0.05;
+                            if (Math.random() < magnetDropChance) {
+                                magnetItems.push(new MagnetItem(enemy.x, enemy.y));
+                            }
+
+                            score += enemy.expValue;
                             enemies.splice(i, 1);
                         }
                         // レーザーは貫通するため削除しない
@@ -1228,6 +1393,24 @@ function gameLoop(currentTime) {
 
     // 経験値アイテム更新・描画
     expItems = expItems.filter(item => {
+        const collected = item.update();
+        if (!collected) {
+            item.draw();
+        }
+        return !collected;
+    });
+
+    // 体力回復アイテム更新・描画
+    healthItems = healthItems.filter(item => {
+        const collected = item.update();
+        if (!collected) {
+            item.draw();
+        }
+        return !collected;
+    });
+
+    // マグネットアイテム更新・描画
+    magnetItems = magnetItems.filter(item => {
         const collected = item.update();
         if (!collected) {
             item.draw();
